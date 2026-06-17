@@ -94,8 +94,21 @@ static void parse_metadata(GGUFFile &gguf, Parser &parser) {
   }
 }
 
-static void parse_tensor(GGUFFile &gguf, Parser &parser) {
-  // TODO: Parse tensor and add them to the GGUFFile object
+static void parse_tensors_info(GGUFFile &gguf, Parser &parser) {
+  gguf.tensors.resize(gguf.tensor_count);
+
+  for (uint64_t i = 0; i < gguf.tensor_count; i++) {
+    GGUFTensorInfo &t = gguf.tensors[i];
+    t.name = parser.read_string();
+    t.n_dimensions = parser.read<uint32_t>();
+
+    t.dimensions[0] = t.dimensions[1] = t.dimensions[2] = t.dimensions[3] = 1;
+    for (uint64_t i = 0; i < t.n_dimensions; i++)
+      t.dimensions[i] = parser.read<uint64_t>();
+
+    t.type = static_cast<GGMLType>(parser.read<uint32_t>());
+    t.offset = parser.read<uint64_t>();
+  }
 }
 
 GGUFFile parse_gguf_config(const std::string &path) {
@@ -112,6 +125,7 @@ GGUFFile parse_gguf_config(const std::string &path) {
   Parser parser{content, 0, 0};
   GGUFFile gguf;
 
+  // Check if we have a GGUF file or not and throw an error otherwise
   uint32_t magic = parser.read<uint32_t>();
   if (magic != 0x46554747)
     throw std::runtime_error("Not a GGUF file");
@@ -121,7 +135,20 @@ GGUFFile parse_gguf_config(const std::string &path) {
   gguf.metadata_kv_count = parser.read<uint64_t>();
 
   parse_metadata(gguf, parser);
-  parse_tensors(gguf, parser);
+  parse_tensors_info(gguf, parser);
+
+  // Allign the GGUF file to the tensors data
+  uint32_t alignment = gguf.metadata_u32.count("general.alignment")
+                           ? gguf.metadata_u32["general.alignment"]
+                           : 32;
+
+  size_t padding = alignment - (parser.pos % alignment);
+  if (padding != alignment)
+    parser.pos += padding;
+
+  parser.offset += padding;
+
+  gguf.tensor_offset += parser.offset;
 
   return gguf;
 }

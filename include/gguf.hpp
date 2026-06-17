@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -29,6 +30,14 @@ enum GGMLType : uint32_t {
   GGML_TYPE_Q8_0 = 8,
 };
 
+struct GGUFTensorInfo {
+  std::string name;
+  uint32_t n_dimensions;
+  uint64_t dimensions[4];
+  GGMLType type;
+  uint64_t offset;
+};
+
 struct GGUFFile {
   uint32_t version;
   uint64_t tensor_count;
@@ -39,6 +48,10 @@ struct GGUFFile {
   std::unordered_map<std::string, uint64_t> metadata_u64;
   std::unordered_map<std::string, float> metadata_f32;
   std::unordered_map<std::string, std::vector<std::string>> metadata_str_arr;
+
+  std::vector<GGUFTensorInfo> tensors;
+
+  size_t tensor_offset;
 };
 
 GGUFFile parse_gguf_config(const std::string &path);

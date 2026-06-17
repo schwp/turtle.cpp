@@ -17,4 +17,11 @@ int main(int argc, char **argv) {
     printf("  %-40s = %.6f\n", k.c_str(), v);
   for (auto &[k, v] : gguf.metadata_str)
     printf("  %-40s = %s\n", k.c_str(), v.c_str());
+
+  for (size_t i = 0; i < std::min((size_t)10, gguf.tensors.size()); i++) {
+    auto &t = gguf.tensors[i];
+    printf("  %-40s [%lu, %lu, %lu, %lu]  type=%u  offset=%lu\n",
+           t.name.c_str(), t.dimensions[0], t.dimensions[1], t.dimensions[2],
+           t.dimensions[3], (uint32_t)t.type, t.offset);
+  }
 }
