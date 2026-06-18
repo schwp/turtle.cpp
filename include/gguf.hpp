@@ -28,6 +28,7 @@ enum GGMLType : uint32_t {
   GGML_TYPE_Q4_0 = 2,
   GGML_TYPE_Q4_1 = 3,
   GGML_TYPE_Q8_0 = 8,
+  GGML_TYPE_Q6_K = 14,
 };
 
 struct GGUFTensorInfo {
