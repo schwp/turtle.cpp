@@ -8,6 +8,7 @@ include_directories(include)
 set(TURTLE_CPP_SRC
     src/gguf.cpp
     src/main.cpp
+    src/quantize.cpp
 )
 
 add_executable(turtle_cpp ${TURTLE_CPP_SRC})
