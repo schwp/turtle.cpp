@@ -126,6 +126,7 @@ GGUFFile parse_gguf_config(const std::string &path) {
   GGUFFile gguf;
 
   gguf.mapped_ptr = content;
+  gguf.file_size = st.st_size;
 
   // Check if we have a GGUF file or not and throw an error otherwise
   uint32_t magic = parser.read<uint32_t>();

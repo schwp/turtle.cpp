@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <sys/mman.h>
 #include <unordered_map>
 #include <vector>
 
@@ -53,7 +54,15 @@ struct GGUFFile {
   std::vector<GGUFTensorInfo> tensors;
 
   size_t tensor_offset;
-  const uint8_t *mapped_ptr;
+  const uint8_t *mapped_ptr = nullptr;
+  size_t file_size = 0;
+
+  ~GGUFFile() {
+    if (mapped_ptr) {
+      munmap((void *)mapped_ptr, file_size);
+      mapped_ptr = nullptr;
+    }
+  }
 };
 
 GGUFFile parse_gguf_config(const std::string &path);
