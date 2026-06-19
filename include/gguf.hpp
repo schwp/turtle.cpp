@@ -53,6 +53,7 @@ struct GGUFFile {
   std::vector<GGUFTensorInfo> tensors;
 
   size_t tensor_offset;
+  const uint8_t *mapped_ptr;
 };
 
 GGUFFile parse_gguf_config(const std::string &path);
