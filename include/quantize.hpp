@@ -2,7 +2,7 @@
 #include "gguf.hpp"
 #include <cstddef>
 #include <cstdint>
-#include <string>
+#include <cstring>
 #include <unordered_map>
 
 struct Tensor {
@@ -11,6 +11,28 @@ struct Tensor {
   uint64_t dimensions[4];
   GGMLType type;
   size_t n_elements;
+};
+
+struct BlockQ4_0 {
+  uint16_t scale;
+  uint8_t data[16];
+};
+
+struct BlockQ4_1 {
+  uint16_t scale;
+  uint16_t min;
+  uint8_t data[16];
+};
+
+struct BlockQ8_0 {
+  uint16_t scale;
+  int8_t data[32];
+};
+
+struct TypeInfo {
+  const char *name;
+  size_t block_size;
+  size_t type_size;
 };
 
 static inline float fp16_to_fp32(uint16_t fp16) {
@@ -45,8 +67,11 @@ static inline float fp16_to_fp32(uint16_t fp16) {
 
   uint32_t fp32 = f32_s | f32_e | f32_m;
 
-  return std::bit_cast<float>(fp32);
+  float result;
+  memcpy(&result, &fp32, sizeof(float));
+  return result;
 }
 
-std::unordered_map<std::string, Tensor>
-load_tensors(const GGUFFile &gguf, const uint8_t *mapped_data);
+float vec_dot(const float *x, const void *w, GGMLType type, int n);
+void matmul();
+std::unordered_map<std::string, Tensor> load_tensors(const GGUFFile &gguf);
