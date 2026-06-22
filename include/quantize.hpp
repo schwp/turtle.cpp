@@ -75,3 +75,5 @@ static inline float fp16_to_fp32(uint16_t fp16) {
 float vec_dot(const float *x, const void *w, GGMLType type, int n);
 void matmul();
 std::unordered_map<std::string, Tensor> load_tensors(const GGUFFile &gguf);
+
+void dequantize_row(const void *data, float *out, GGMLType type, int n);

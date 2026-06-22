@@ -36,8 +36,8 @@ static void dequantize_q4_0(const BlockQ4_0 &block, float *out) {
     int low = (byte & 0x0F) - 8;
     int high = (byte >> 4) - 8;
 
-    out[2 * i] = low * s;
-    out[2 * i + 1] = high * s;
+    out[i] = low * s;
+    out[i + 16] = high * s;
   }
 }
 
@@ -51,8 +51,8 @@ static void dequantize_q4_1(const BlockQ4_1 &block, float *out) {
     int low = byte & 0x0F;
     int high = byte >> 4;
 
-    out[2 * i] = low * s + m;
-    out[2 * i + 1] = high * s + m;
+    out[i] = low * s + m;
+    out[i + 16] = high * s + m;
   }
 }
 
@@ -97,8 +97,8 @@ static float vec_dot_q4_0_impl(const float *x, const void *w, int n) {
       int low = (byte & 0x0F) - 8;
       int high = (byte >> 4) - 8;
 
-      sum += x[i * 32 + 2 * j] * low * s;
-      sum += x[i * 32 + 2 * j + 1] * high * s;
+      sum += x[i * 32 + j] * low * s;
+      sum += x[i * 32 + j + 16] * high * s;
     }
   }
 
@@ -120,8 +120,8 @@ static float vec_dot_q4_1_impl(const float *x, const void *w, int n) {
       int low = (byte & 0x0F) - 8;
       int high = (byte >> 4) - 8;
 
-      sum += x[i * 32 + 2 * j] * (low * s + m);
-      sum += x[i * 32 + 2 * j + 1] * (high * s + m);
+      sum += x[i * 32 + j] * (low * s + m);
+      sum += x[i * 32 + j + 16] * (high * s + m);
     }
   }
 
@@ -182,8 +182,10 @@ std::unordered_map<std::string, Tensor> load_tensors(GGUFFile const &gguf) {
     t.n_dimensions = info.n_dimensions;
 
     size_t n_elements = 1;
-    for (uint32_t i = 0; i < info.n_dimensions; i++)
+    for (uint32_t i = 0; i < info.n_dimensions; i++) {
       n_elements *= info.dimensions[i];
+      t.dimensions[i] = info.dimensions[i];
+    }
     t.n_elements = n_elements;
 
     t.data = gguf.mapped_ptr + gguf.tensor_offset + info.offset;
@@ -192,4 +194,48 @@ std::unordered_map<std::string, Tensor> load_tensors(GGUFFile const &gguf) {
   }
 
   return tensors;
+}
+
+void dequantize_row(const void *data, float *out, GGMLType type, int n) {
+  switch (type) {
+  case GGML_TYPE_F32:
+    memcpy(out, data, n * sizeof(float));
+    break;
+
+  case GGML_TYPE_F16: {
+    const uint16_t *src = (const uint16_t *)data;
+    for (int i = 0; i < n; i++)
+      out[i] = fp16_to_fp32(src[i]);
+    break;
+  }
+
+  case GGML_TYPE_Q4_0: {
+    const BlockQ4_0 *blocks = (const BlockQ4_0 *)data;
+    int n_blocks = n / 32;
+    for (int b = 0; b < n_blocks; b++)
+      dequantize_q4_0(blocks[b], out + b * 32);
+    break;
+  }
+
+  case GGML_TYPE_Q4_1: {
+    const BlockQ4_1 *blocks = (const BlockQ4_1 *)data;
+    int n_blocks = n / 32;
+    for (int b = 0; b < n_blocks; b++)
+      dequantize_q4_1(blocks[b], out + b * 32);
+    break;
+  }
+
+  case GGML_TYPE_Q8_0: {
+    const BlockQ8_0 *blocks = (const BlockQ8_0 *)data;
+    int n_blocks = n / 32;
+    for (int b = 0; b < n_blocks; b++)
+      dequantize_q8_0(blocks[b], out + b * 32);
+    break;
+  }
+
+  case GGML_TYPE_Q6_K:
+  default:
+    fprintf(stderr, "dequantize_row: unsupported type %u\n", type);
+    break;
+  }
 }
