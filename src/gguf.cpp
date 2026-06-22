@@ -145,13 +145,11 @@ GGUFFile parse_gguf_config(const std::string &path) {
                            ? gguf.metadata_u32["general.alignment"]
                            : 32;
 
-  size_t padding = alignment - (parser.pos % alignment);
-  if (padding != alignment)
-    parser.pos += padding;
+  size_t remainder = parser.pos % alignment;
+  if (remainder != 0)
+    parser.pos += alignment - remainder;
 
-  parser.offset += padding;
-
-  gguf.tensor_offset += parser.offset;
+  gguf.tensor_offset = parser.pos;
 
   return gguf;
 }
