@@ -4,9 +4,10 @@
 
 const TypeInfo &get_type_info(GGMLType type) {
   static const TypeInfo table[] = {
-      {"F32", 1, 4},    {"F16", 1, 2},   {"Q4_0", 32, 18},
-      {"Q4_1", 32, 20}, {nullptr, 0, 0}, {nullptr, 0, 0},
-      {nullptr, 0, 0},  {nullptr, 0, 0}, {"Q8_0", 32, 34},
+      {"F32", 1, 4},    {"F16", 1, 2},   {"Q4_0", 32, 18},   {"Q4_1", 32, 20},
+      {nullptr, 0, 0},  {nullptr, 0, 0}, {nullptr, 0, 0},    {nullptr, 0, 0},
+      {"Q8_0", 32, 34}, {nullptr, 0, 0}, {nullptr, 0, 0},    {nullptr, 0, 0},
+      {nullptr, 0, 0},  {nullptr, 0, 0}, {"Q6_K", 256, 210},
   };
   static const TypeInfo unknown = {"unknown", 0, 0};
   static constexpr int table_size = sizeof(table) / sizeof(table[0]);

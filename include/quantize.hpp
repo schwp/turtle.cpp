@@ -24,6 +24,13 @@ struct BlockQ4_1 {
   uint8_t data[16];
 };
 
+struct BlockQ6_K {
+  int8_t scales[16];
+  uint8_t ql[128];
+  uint8_t qh[64];
+  uint16_t d;
+};
+
 struct BlockQ8_0 {
   uint16_t scale;
   int8_t data[32];
@@ -75,5 +82,6 @@ static inline float fp16_to_fp32(uint16_t fp16) {
 float vec_dot(const float *x, const void *w, GGMLType type, int n);
 void matmul();
 std::unordered_map<std::string, Tensor> load_tensors(const GGUFFile &gguf);
+const TypeInfo &get_type_info(GGMLType type);
 
 void dequantize_row(const void *data, float *out, GGMLType type, int n);
