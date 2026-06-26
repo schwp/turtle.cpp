@@ -29,6 +29,7 @@ set(TURTLE_CPP_SRC
     src/gguf.cpp
     src/main.cpp
     src/quantize.cpp
+    src/model.cpp
 )
 
 enable_testing()

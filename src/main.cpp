@@ -1,27 +1,21 @@
-#include "gguf.hpp"
+#include "model.hpp"
 #include <cstdio>
 
 int main(int argc, char **argv) {
   if (argc < 2) {
-    printf("Usage: %s <path/to/model.gguf>\n", argv[0]);
+    printf("Usage: %s <model.gguf>\n", argv[0]);
     return 1;
   }
 
-  GGUFFile gguf = parse_gguf_config(argv[1]);
-  printf("GGUF v%u - %lu tensors, %lu kv pairs\n", gguf.version,
-         gguf.tensor_count, gguf.metadata_kv_count);
+  Model model = load_model(argv[1]);
 
-  for (auto &[k, v] : gguf.metadata_u32)
-    printf("  %-40s = %u\n", k.c_str(), v);
-  for (auto &[k, v] : gguf.metadata_f32)
-    printf("  %-40s = %.6f\n", k.c_str(), v);
-  for (auto &[k, v] : gguf.metadata_str)
-    printf("  %-40s = %s\n", k.c_str(), v.c_str());
+  auto &l = model.layers[0];
+  printf("Layer 0 tensor types:\n");
+  printf("  attn_norm:   %s\n", get_type_info(l.attn_norm.type).name);
+  printf("  attn_q:      %s\n", get_type_info(l.attn_q.type).name);
+  printf("  attn_k:      %s\n", get_type_info(l.attn_k.type).name);
+  printf("  ffn_gate:    %s\n", get_type_info(l.ffn_gate.type).name);
+  printf("  output:      %s\n", get_type_info(model.output.type).name);
 
-  for (size_t i = 0; i < std::min((size_t)10, gguf.tensors.size()); i++) {
-    auto &t = gguf.tensors[i];
-    printf("  %-40s [%lu, %lu, %lu, %lu]  type=%u  offset=%lu\n",
-           t.name.c_str(), t.dimensions[0], t.dimensions[1], t.dimensions[2],
-           t.dimensions[3], (uint32_t)t.type, t.offset);
-  }
+  return 0;
 }
