@@ -57,12 +57,55 @@ struct GGUFFile {
   const uint8_t *mapped_ptr = nullptr;
   size_t file_size = 0;
 
+  GGUFFile() = default;
+
   ~GGUFFile() {
     if (mapped_ptr) {
       munmap((void *)mapped_ptr, file_size);
       mapped_ptr = nullptr;
     }
   }
+
+  GGUFFile(GGUFFile &&other) noexcept
+      : version(other.version), tensor_count(other.tensor_count),
+        metadata_kv_count(other.metadata_kv_count),
+        metadata_str(std::move(other.metadata_str)),
+        metadata_u32(std::move(other.metadata_u32)),
+        metadata_u64(std::move(other.metadata_u64)),
+        metadata_f32(std::move(other.metadata_f32)),
+        metadata_str_arr(std::move(other.metadata_str_arr)),
+        tensors(std::move(other.tensors)), tensor_offset(other.tensor_offset),
+        mapped_ptr(other.mapped_ptr), file_size(other.file_size) {
+    other.mapped_ptr = nullptr;
+    other.file_size = 0;
+  }
+
+  GGUFFile &operator=(GGUFFile &&other) noexcept {
+    if (this != &other) {
+      if (mapped_ptr)
+        munmap((void *)mapped_ptr, file_size);
+
+      version = other.version;
+      tensor_count = other.tensor_count;
+      metadata_kv_count = other.metadata_kv_count;
+      metadata_str = std::move(other.metadata_str);
+      metadata_u32 = std::move(other.metadata_u32);
+      metadata_u64 = std::move(other.metadata_u64);
+      metadata_f32 = std::move(other.metadata_f32);
+      metadata_str_arr = std::move(other.metadata_str_arr);
+      tensors = std::move(other.tensors);
+      tensor_offset = other.tensor_offset;
+      mapped_ptr = other.mapped_ptr;
+      file_size = other.file_size;
+
+      other.mapped_ptr = nullptr;
+      other.file_size = 0;
+    }
+    return *this;
+  }
+
+  GGUFFile(const GGUFFile &) = delete;
+  GGUFFile &operator=(const GGUFFile &) = delete;
 };
 
 GGUFFile parse_gguf_config(const std::string &path);
