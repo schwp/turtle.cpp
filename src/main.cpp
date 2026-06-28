@@ -8,14 +8,16 @@ int main(int argc, char **argv) {
   }
 
   Model model = load_model(argv[1]);
+  model.allocate_buffer();
 
-  auto &l = model.layers[0];
-  printf("Layer 0 tensor types:\n");
-  printf("  attn_norm:   %s\n", get_type_info(l.attn_norm.type).name);
-  printf("  attn_q:      %s\n", get_type_info(l.attn_q.type).name);
-  printf("  attn_k:      %s\n", get_type_info(l.attn_k.type).name);
-  printf("  ffn_gate:    %s\n", get_type_info(l.ffn_gate.type).name);
-  printf("  output:      %s\n", get_type_info(model.output.type).name);
+  KVCache cache;
+  cache.allocate(model.config);
+
+  // Hardcoded prompt: "The capital of France is"
+  std::vector<int> prompt = {1, 450, 7483, 310, 3444, 338};
+
+  printf("Generating...\n");
+  generate(model, cache, prompt, 50);
 
   return 0;
 }
