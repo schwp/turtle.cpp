@@ -79,8 +79,12 @@ static inline float fp16_to_fp32(uint16_t fp16) {
   return result;
 }
 
+size_t row_bytes(GGMLType type, int n);
+size_t tensor_bytes(GGMLType type, size_t n_elements);
+
 float vec_dot(const float *x, const void *w, GGMLType type, int n);
-void matmul();
+void matmul(float *out, const float *x, const void *w, GGMLType type,
+            int in_features, int out_features);
 std::unordered_map<std::string, Tensor> load_tensors(const GGUFFile &gguf);
 const TypeInfo &get_type_info(GGMLType type);
 

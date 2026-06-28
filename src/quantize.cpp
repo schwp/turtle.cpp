@@ -17,7 +17,7 @@ const TypeInfo &get_type_info(GGMLType type) {
   return table[type];
 }
 
-static size_t tensor_bytes(GGMLType type, size_t n_elements) {
+size_t tensor_bytes(GGMLType type, size_t n_elements) {
   const TypeInfo &info = get_type_info(type);
   if (info.block_size == 0)
     return 0;
@@ -26,7 +26,7 @@ static size_t tensor_bytes(GGMLType type, size_t n_elements) {
   return n_blocks * info.type_size;
 }
 
-static size_t row_bytes(GGMLType type, int n) { return tensor_bytes(type, n); }
+size_t row_bytes(GGMLType type, int n) { return tensor_bytes(type, n); }
 
 static void dequantize_q4_0(const BlockQ4_0 &block, float *out) {
   float s = fp16_to_fp32(block.scale);
@@ -145,6 +145,40 @@ static float vec_dot_q8_0_impl(const float *x, const void *w, int n) {
   return s;
 }
 
+static float vec_dot_q6_k_impl(const float *x, const void *w, int n) {
+  const BlockQ6_K *blocks = static_cast<const BlockQ6_K *>(w);
+  int n_blocks = n / 256;
+  float sum = 0.0f;
+
+  for (int b = 0; b < n_blocks; b++) {
+    float super_scale = fp16_to_fp32(blocks[b].d);
+
+    for (int sub = 0; sub < 16; sub++) {
+      float sub_scale = blocks[b].scales[sub] * super_scale;
+      int base = b * 256 + sub * 16;
+
+      for (int i = 0; i < 16; i++) {
+        int idx = sub * 16 + i;
+
+        int ql_byte = idx / 2;
+        int lo = (idx % 2 == 0) ? (blocks[b].ql[ql_byte] & 0x0F)
+                                : (blocks[b].ql[ql_byte] >> 4);
+
+        int qh_byte = idx / 4;
+        int qh_shift = (idx % 4) * 2;
+        int hi = (blocks[b].qh[qh_byte] >> qh_shift) & 0x03;
+
+        int combined = lo | (hi << 4);
+        float dequant = (combined - 32) * sub_scale;
+
+        sum += x[base + i] * dequant;
+      }
+    }
+  }
+
+  return sum;
+}
+
 float vec_dot(const float *x, const void *w, GGMLType type, int n) {
   switch (type) {
   case GGML_TYPE_F32:
@@ -158,6 +192,7 @@ float vec_dot(const float *x, const void *w, GGMLType type, int n) {
   case GGML_TYPE_Q8_0:
     return vec_dot_q8_0_impl(x, w, n);
   case GGML_TYPE_Q6_K:
+    return vec_dot_q6_k_impl(x, w, n);
   default:
     fprintf(stderr, "vec_dot: unsupported type %u", type);
     return 0.0f;
