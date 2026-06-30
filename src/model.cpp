@@ -232,6 +232,17 @@ int argmax(const float *logits, int vocab_size) {
   return max_idx;
 }
 
+static std::string decode_token(const Model &model, int token_id) {
+  std::string word =
+      model.gguf.metadata_str_arr.at("tokenizer.ggml.tokens")[token_id];
+
+  size_t pos_sp;
+  while ((pos_sp = word.find("▁")) != std::string::npos)
+    word.replace(pos_sp, 3, " ");
+
+  return word;
+}
+
 void generate(Model &model, KVCache &cache,
               const std::vector<int> &prompt_tokens, int max_tokens) {
   float *logits = model.buf.logits.data();
@@ -245,8 +256,7 @@ void generate(Model &model, KVCache &cache,
   int eos_token = 2;
 
   for (int i = 0; i < max_tokens; i++) {
-    // TODO: decode and print the token here
-    printf("%d ", next_token);
+    printf("%s", decode_token(model, next_token).c_str());
 
     if (next_token == eos_token)
       break;

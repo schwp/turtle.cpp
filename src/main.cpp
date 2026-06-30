@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
   std::vector<int> prompt = {1, 450, 7483, 310, 3444, 338};
 
   printf("Generating...\n");
-  generate(model, cache, prompt, 50);
+  generate(model, cache, prompt, 30);
 
   return 0;
 }
