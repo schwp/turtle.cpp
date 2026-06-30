@@ -57,6 +57,38 @@ static void dequantize_q4_1(const BlockQ4_1 &block, float *out) {
   }
 }
 
+static void dequantize_q6_k(const BlockQ6_K &block, float *out) {
+  float super_scale = fp16_to_fp32(block.d);
+
+  for (int half = 0; half < 256; half += 128) {
+    for (int l = 0; l < 32; l++) {
+      int is = half / 16 + l / 16;
+
+      int8_t q1 =
+          static_cast<int8_t>((block.ql[half / 2 + l + 0] & 0xF) |
+                              (((block.qh[half / 4 + l] >> 0) & 3) << 4)) -
+          32;
+      int8_t q2 =
+          static_cast<int8_t>((block.ql[half / 2 + l + 32] & 0xF) |
+                              (((block.qh[half / 4 + l] >> 2) & 3) << 4)) -
+          32;
+      int8_t q3 =
+          static_cast<int8_t>((block.ql[half / 2 + l + 0] >> 4) |
+                              (((block.qh[half / 4 + l] >> 4) & 3) << 4)) -
+          32;
+      int8_t q4 =
+          static_cast<int8_t>((block.ql[half / 2 + l + 32] >> 4) |
+                              (((block.qh[half / 4 + l] >> 6) & 3) << 4)) -
+          32;
+
+      out[half + l + 0] = super_scale * block.scales[is + 0] * q1;
+      out[half + l + 32] = super_scale * block.scales[is + 2] * q2;
+      out[half + l + 64] = super_scale * block.scales[is + 4] * q3;
+      out[half + l + 96] = super_scale * block.scales[is + 6] * q4;
+    }
+  }
+}
+
 static void dequantize_q8_0(const BlockQ8_0 &block, float *out) {
   float s = fp16_to_fp32(block.scale);
 
@@ -146,33 +178,22 @@ static float vec_dot_q8_0_impl(const float *x, const void *w, int n) {
 }
 
 static float vec_dot_q6_k_impl(const float *x, const void *w, int n) {
-  const BlockQ6_K *blocks = static_cast<const BlockQ6_K *>(w);
+  const BlockQ6_K *blocks = (const BlockQ6_K *)w;
   int n_blocks = n / 256;
   float sum = 0.0f;
 
   for (int b = 0; b < n_blocks; b++) {
-    float super_scale = fp16_to_fp32(blocks[b].d);
+    // Allocate a temporary buffer on the stack (L1 cache resident)
+    float block_out[256];
 
-    for (int sub = 0; sub < 16; sub++) {
-      float sub_scale = blocks[b].scales[sub] * super_scale;
-      int base = b * 256 + sub * 16;
+    // Dequantize the current block into the buffer
+    dequantize_q6_k(blocks[b], block_out);
 
-      for (int i = 0; i < 16; i++) {
-        int idx = sub * 16 + i;
-
-        int ql_byte = idx / 2;
-        int lo = (idx % 2 == 0) ? (blocks[b].ql[ql_byte] & 0x0F)
-                                : (blocks[b].ql[ql_byte] >> 4);
-
-        int qh_byte = idx / 4;
-        int qh_shift = (idx % 4) * 2;
-        int hi = (blocks[b].qh[qh_byte] >> qh_shift) & 0x03;
-
-        int combined = lo | (hi << 4);
-        float dequant = (combined - 32) * sub_scale;
-
-        sum += x[base + i] * dequant;
-      }
+    // Simple, clean float multiplication that compilers can easily
+    // optimize with hardware-accelerated SIMD vectorization.
+    int base = b * 256;
+    for (int i = 0; i < 256; i++) {
+      sum += x[base + i] * block_out[i];
     }
   }
 
@@ -269,7 +290,14 @@ void dequantize_row(const void *data, float *out, GGMLType type, int n) {
     break;
   }
 
-  case GGML_TYPE_Q6_K:
+  case GGML_TYPE_Q6_K: {
+    const BlockQ6_K *blocks = (const BlockQ6_K *)data;
+    int n_blocks = n / 256;
+    for (int b = 0; b < n_blocks; b++)
+      dequantize_q6_k(blocks[b], out + b * 256);
+    break;
+  }
+
   default:
     fprintf(stderr, "dequantize_row: unsupported type %u\n", type);
     break;
