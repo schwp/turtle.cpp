@@ -58,6 +58,7 @@ void Model::allocate_buffer() {
   buf.k.resize(config.num_kv_heads * config.head_dim);
   buf.v.resize(config.num_kv_heads * config.head_dim);
   buf.attn_out.resize(config.hidden_size);
+  buf.attn_heads.resize(config.hidden_size);
   buf.scores.resize(config.context_length);
   buf.gate.resize(config.intermediate_size);
   buf.up.resize(config.intermediate_size);
@@ -115,7 +116,7 @@ void attention(float *out, const float *x, const TransformerLayer &layer,
   float *K = model.buf.k.data();
   float *V = model.buf.v.data();
   float *scores = model.buf.scores.data();
-  float *attn_out = model.buf.attn_out.data();
+  float *attn_heads = model.buf.attn_heads.data();
 
   matmul(Q, x, layer.attn_q.data, layer.attn_q.type, model.config.hidden_size,
          model.config.num_heads * model.config.head_dim);
@@ -136,7 +137,7 @@ void attention(float *out, const float *x, const TransformerLayer &layer,
   for (int i = 0; i < model.config.num_heads; i++) {
     int kv_h = i / (model.config.num_heads / model.config.num_kv_heads);
     float *q_head = Q + i * model.config.head_dim;
-    float *head_out = attn_out + i * model.config.head_dim;
+    float *head_out = attn_heads + i * model.config.head_dim;
 
     for (int j = 0; j <= pos; j++) {
       float *k_i = cache.k_at(layer_idx, j) + kv_h * model.config.head_dim;
@@ -159,7 +160,7 @@ void attention(float *out, const float *x, const TransformerLayer &layer,
     }
   }
 
-  matmul(out, attn_out, layer.attn_output.data, layer.attn_output.type,
+  matmul(out, attn_heads, layer.attn_output.data, layer.attn_output.type,
          model.config.hidden_size, model.config.hidden_size);
 }
 

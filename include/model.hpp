@@ -34,8 +34,8 @@ struct Model {
   std::vector<TransformerLayer> layers;
 
   struct {
-    std::vector<float> x, normed, q, k, v, attn_out, scores, gate, up, mlp_out,
-        logits;
+    std::vector<float> x, normed, q, k, v, attn_out, attn_heads, scores, gate,
+        up, mlp_out, logits;
   } buf;
 
   void allocate_buffer();
