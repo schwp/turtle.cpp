@@ -25,9 +25,9 @@ struct BlockQ4_1 {
 };
 
 struct BlockQ6_K {
-  int8_t scales[16];
   uint8_t ql[128];
   uint8_t qh[64];
+  int8_t scales[16];
   uint16_t d;
 };
 
