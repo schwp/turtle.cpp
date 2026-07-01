@@ -37,6 +37,8 @@ set(TURTLE_CPP_SRC
 enable_testing()
 
 add_executable(turtle_cpp ${TURTLE_CPP_SRC})
+target_compile_options(turtle_cpp PRIVATE -mavx2 -mfma -fopenmp -O2)
+target_link_options(turtle_cpp PRIVATE -fopenmp)
 
 add_executable(test_ops tests/test_ops.cpp src/ops.cpp)
 target_link_libraries(test_ops PRIVATE GTest::gtest_main "${TORCH_LIBRARIES}")

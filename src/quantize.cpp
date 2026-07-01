@@ -1,6 +1,8 @@
 #include "quantize.hpp"
 #include <cstdint>
 #include <cstdio>
+#include <immintrin.h>
+#include <omp.h>
 
 const TypeInfo &get_type_info(GGMLType type) {
   static const TypeInfo table[] = {
@@ -141,6 +143,46 @@ static float vec_dot_q4_0_impl(const float *x, const void *w, int n) {
 static float vec_dot_q4_1_impl(const float *x, const void *w, int n) {
   const BlockQ4_1 *w_dot = static_cast<const BlockQ4_1 *>(w);
   int nb_blocks = n / 32;
+
+#ifdef __AVX2__
+  __m256 acc = _mm256_setzero_ps();
+
+  for (int i = 0; i < nb_blocks; i++) {
+    float scale = fp16_to_fp32(w_dot[i].scale);
+    __m256 vscale = _mm256_set1_ps(scale);
+
+    for (int j = 0; j < 16; j += 8) {
+      float dq[8];
+      for (int k = 0; k < 8; k++) {
+        int lo = (w_dot[i].data[j + k] & 0x0F) - 8;
+        dq[k] = lo * scale;
+      }
+      __m256 vw = _mm256_loadu_ps(dq);
+      __m256 vx = _mm256_loadu_ps(x + i * 32 + j);
+      acc = _mm256_fmadd_ps(vw, vx, acc);
+    }
+
+    for (int j = 0; j < 16; j += 8) {
+      float dq[8];
+      for (int k = 0; k < 8; k++) {
+        int hi = (w_dot[i].data[j + k] >> 4) - 8;
+        dq[k] = hi * scale;
+      }
+      __m256 vw = _mm256_loadu_ps(dq);
+      __m256 vx = _mm256_loadu_ps(x + i * 32 + j + 16);
+      acc = _mm256_fmadd_ps(vw, vx, acc);
+    }
+  }
+
+  __m128 hi = _mm256_extractf128_ps(acc, 1);
+  __m128 lo = _mm256_castps256_ps128(acc);
+  __m128 sum128 = _mm_add_ps(lo, hi);
+
+  sum128 = _mm_hadd_ps(sum128, sum128);
+  sum128 = _mm_hadd_ps(sum128, sum128);
+
+  return _mm_cvtss_f32(sum128);
+#else
   float sum = 0.0f;
 
   for (int i = 0; i < nb_blocks; i++) {
@@ -159,6 +201,7 @@ static float vec_dot_q4_1_impl(const float *x, const void *w, int n) {
   }
 
   return sum;
+#endif
 }
 
 static float vec_dot_q8_0_impl(const float *x, const void *w, int n) {
@@ -183,14 +226,10 @@ static float vec_dot_q6_k_impl(const float *x, const void *w, int n) {
   float sum = 0.0f;
 
   for (int b = 0; b < n_blocks; b++) {
-    // Allocate a temporary buffer on the stack (L1 cache resident)
     float block_out[256];
 
-    // Dequantize the current block into the buffer
     dequantize_q6_k(blocks[b], block_out);
 
-    // Simple, clean float multiplication that compilers can easily
-    // optimize with hardware-accelerated SIMD vectorization.
     int base = b * 256;
     for (int i = 0; i < 256; i++) {
       sum += x[base + i] * block_out[i];
@@ -224,6 +263,7 @@ void matmul(float *out, const float *x, const void *w, GGMLType type,
             int in_features, int out_features) {
   size_t rows = row_bytes(type, in_features);
 
+#pragma omp parallel for
   for (int i = 0; i < out_features; i++) {
     const void *row = static_cast<const uint8_t *>(w) + i * rows;
     out[i] = vec_dot(x, row, type, in_features);
