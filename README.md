@@ -43,11 +43,21 @@ Benchmarked on **AMD Ryzen 5 2600 Six-Core Processor**, [TinyLlama-1.1B Q4_0](ht
 
 Everything from raw bytes on disk to generated text — no external ML libraries:
 
-**GGUF parser** — reads the binary file format: header, metadata key-value pairs, tensor info array, and alignment. Supports version 3. Model configuration (hidden size, number of heads, RoPE theta, etc.) is extracted from metadata keys, making the same code work for any LLaMA-family model.
+**GGUF parser**: reads the binary file format: header, metadata key-value pairs, 
+tensor info array, and alignment. Supports version 3. Model configuration (hidden 
+size, number of heads, RoPE theta, etc.) is extracted from metadata keys, making 
+the same code work for any LLaMA-family model.
 
-**Quantized tensor access** — model weights stay in their compressed format in memory (via mmap). No full-model dequantization at load time. Q4_0 weights occupy 0.56 bytes per parameter (7× compression vs FP32), Q6_K uses 0.82 bytes (4.9× compression). Tensor data is accessed through zero-copy pointers into the memory-mapped file.
+**Quantized tensor access**: model weights stay in their compressed format in 
+memory (via mmap). No full-model dequantization at load time. Q4_0 weights occupy 
+0.56 bytes per parameter (7× compression vs FP32), Q6_K uses 0.82 bytes 
+(4.9× compression). Tensor data is accessed through zero-copy pointers into the 
+memory-mapped file.
 
-**Fused dequantization** — dot products between FP32 activations and quantized weights are computed in a single pass. Each quantized block is dequantized into CPU registers, multiplied with the input, and accumulated — the dequantized values never touch main memory. This is what makes quantized inference memory-efficient.
+**Fused dequantization**: dot products between FP32 activations and quantized 
+weights are computed in a single pass. Each quantized block is dequantized into 
+CPU registers, multiplied with the input, and accumulated, the dequantized values 
+never touch main memory. This is what makes quantized inference memory-efficient.
 
 **Transformer forward pass:**
 - RMSNorm with double-precision accumulation for numerical stability
@@ -57,7 +67,9 @@ Everything from raw bytes on disk to generated text — no external ML libraries
 - SwiGLU MLP: gated activation with SiLU nonlinearity
 - Residual connections after attention and MLP blocks
 
-**Text generation** — autoregressive loop with prefill (process prompt, populate KV cache) and generation (produce one token per step) phases. Supports greedy decoding (argmax) and temperature + top-p sampling.
+**Text generation**: autoregressive loop with prefill (process prompt, populate
+KV cache) and generation (produce one token per step) phases. Supports greedy 
+decoding (argmax) and temperature + top-p sampling.
 
 
 ## Project structure
