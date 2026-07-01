@@ -1,4 +1,5 @@
 #include "model.hpp"
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 
@@ -248,12 +249,21 @@ void generate(Model &model, KVCache &cache,
   float *logits = model.buf.logits.data();
   int pos = 0;
 
+  auto start_prefill = std::chrono::high_resolution_clock::now();
+
   for (int token : prompt_tokens)
     forward(logits, token, model, cache, pos++);
 
+  auto end_prefill = std::chrono::high_resolution_clock::now();
+  double prefill_ms =
+      std::chrono::duration<double, std::milli>(end_prefill - start_prefill)
+          .count();
+
   int next_token = argmax(logits, model.config.vocab_size);
 
-  int eos_token = 2;
+  int eos_token = 2, generated = 0;
+
+  auto start_generation = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < max_tokens; i++) {
     printf("%s", decode_token(model, next_token).c_str());
@@ -263,7 +273,19 @@ void generate(Model &model, KVCache &cache,
 
     forward(logits, next_token, model, cache, pos++);
     next_token = argmax(logits, model.config.vocab_size);
+    generated++;
   }
+
+  auto end_generation = std::chrono::high_resolution_clock::now();
+  double generation_ms = std::chrono::duration<double, std::milli>(
+                             end_generation - start_generation)
+                             .count();
+
+  printf("Prefill: %d tokens in %.1f ms (%.1f tok/s)\n",
+         static_cast<int>(prompt_tokens.size()), prefill_ms,
+         prompt_tokens.size() / (prefill_ms / 1000.0));
+  printf("Generation: %d tokens in %.1f ms (%.2f tok/s)\n", generated,
+         generation_ms, generated / (generation_ms / 1000.0));
 
   printf("\n");
 }
