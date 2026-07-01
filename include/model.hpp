@@ -1,4 +1,5 @@
 #pragma once
+#include "cli.hpp"
 #include "gguf.hpp"
 #include "ops.hpp"
 #include "quantize.hpp"
@@ -75,4 +76,4 @@ void forward(float *logits, int token_id, Model &model, KVCache &cache,
 int argmax(const float *logits, int vocab_size);
 int sample(const float *logits, int vocab_size, float temp, float top_p);
 void generate(Model &model, KVCache &cache,
-              const std::vector<int> &prompt_tokens, int max_tokens);
+              const std::vector<int> &prompt_tokens, const CliArgs &args);

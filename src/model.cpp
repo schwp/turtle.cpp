@@ -1,7 +1,9 @@
 #include "model.hpp"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 
 // This config loading function is based on the GGUF Llama models metadata for
 // now, but will be adapted to support other models in the future.
@@ -233,6 +235,49 @@ int argmax(const float *logits, int vocab_size) {
   return max_idx;
 }
 
+int sample_top_p(const float *logits, int vocab_size, float temperature,
+                 float top_p) {
+  std::vector<std::pair<float, int>> probs(vocab_size);
+  for (int i = 0; i < vocab_size; i++)
+    probs[i] = {logits[i] / temperature, i};
+
+  std::sort(probs.begin(), probs.end(),
+            [](auto &a, auto &b) { return a.first > b.first; });
+
+  float max_val = probs[0].first;
+  float sum = 0.0f;
+  for (auto &p : probs) {
+    p.first = expf(p.first - max_val);
+    sum += p.first;
+  }
+  for (auto &p : probs)
+    p.first /= sum;
+
+  float cumsum = 0.0f;
+  int cutoff = 0;
+  for (int i = 0; i < vocab_size; i++) {
+    cumsum += probs[i].first;
+    cutoff = i + 1;
+    if (cumsum >= top_p)
+      break;
+  }
+
+  float kept_sum = 0.0f;
+  for (int i = 0; i < cutoff; i++)
+    kept_sum += probs[i].first;
+
+  float r =
+      static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * kept_sum;
+  float acc = 0.0f;
+  for (int i = 0; i < cutoff; i++) {
+    acc += probs[i].first;
+    if (acc >= r)
+      return probs[i].second;
+  }
+
+  return probs[0].second;
+}
+
 static std::string decode_token(const Model &model, int token_id) {
   std::string word =
       model.gguf.metadata_str_arr.at("tokenizer.ggml.tokens")[token_id];
@@ -245,7 +290,7 @@ static std::string decode_token(const Model &model, int token_id) {
 }
 
 void generate(Model &model, KVCache &cache,
-              const std::vector<int> &prompt_tokens, int max_tokens) {
+              const std::vector<int> &prompt_tokens, const CliArgs &args) {
   float *logits = model.buf.logits.data();
   int pos = 0;
 
@@ -259,21 +304,31 @@ void generate(Model &model, KVCache &cache,
       std::chrono::duration<double, std::milli>(end_prefill - start_prefill)
           .count();
 
-  int next_token = argmax(logits, model.config.vocab_size);
+  int next_token;
+  if (args.greedy)
+    next_token = argmax(logits, model.config.vocab_size);
+  else
+    next_token = sample_top_p(logits, model.config.vocab_size, args.temperature,
+                              args.top_p);
 
   int eos_token = 2, generated = 0;
 
   auto start_generation = std::chrono::high_resolution_clock::now();
 
-  for (int i = 0; i < max_tokens; i++) {
+  for (int i = 0; i < args.max_tokens; i++) {
     printf("%s", decode_token(model, next_token).c_str());
 
     if (next_token == eos_token)
       break;
 
     forward(logits, next_token, model, cache, pos++);
-    next_token = argmax(logits, model.config.vocab_size);
     generated++;
+
+    if (args.greedy)
+      next_token = argmax(logits, model.config.vocab_size);
+    else
+      next_token = sample_top_p(logits, model.config.vocab_size,
+                                args.temperature, args.top_p);
   }
 
   auto end_generation = std::chrono::high_resolution_clock::now();
@@ -281,11 +336,9 @@ void generate(Model &model, KVCache &cache,
                              end_generation - start_generation)
                              .count();
 
-  printf("Prefill: %d tokens in %.1f ms (%.1f tok/s)\n",
+  printf("\nPrefill: %d tokens in %.1f ms (%.1f tok/s)\n",
          static_cast<int>(prompt_tokens.size()), prefill_ms,
          prompt_tokens.size() / (prefill_ms / 1000.0));
   printf("Generation: %d tokens in %.1f ms (%.2f tok/s)\n", generated,
          generation_ms, generated / (generation_ms / 1000.0));
-
-  printf("\n");
 }

@@ -31,6 +31,7 @@ set(TURTLE_CPP_SRC
     src/quantize.cpp
     src/model.cpp
     src/ops.cpp
+    src/cli.cpp
 )
 
 enable_testing()
